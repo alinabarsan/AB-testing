@@ -1,0 +1,277 @@
+201.1
+--to join all tables
+SELECT *
+FROM activity a
+LEFT JOIN groups g
+    ON a.uid = g.uid
+LEFT JOIN users u
+    ON g.uid = u.id
+
+
+1. How many users in the control group were in Canada?
+SELECT COUNT(id) as total, 
+        country,
+        "group"
+FROM users u
+JOIN groups g
+    ON u.id = g.uid
+WHERE "group" = 'A' AND country = 'CAN'
+GROUP BY country, "group"
+--767
+
+2.What was the conversion rate of all users? 
+SELECT COUNT(DISTINCT id) as total_visitors
+FROM users
+--48943
+
+SELECT COUNT (DISTINCT uid) as total_conversions
+FROM activity 
+--2094
+
+(2094/48943) * 100 = 4.28%
+
+3. As of February 1st, 2023, how many users were in the A/B test?
+SELECT COUNT (join_dt) as feb_users
+FROM groups
+WHERE join_dt <= '2023-02-01'
+--41412
+
+4. Can a user show up more than once in the activity table? Yes or no, and why?
+--Yes, a user can make purchases on multiple days
+
+5. Which of the following ways to increase statistical power 
+are most likely to be out of our control?
+--Decreasing variability of the dataset
+
+
+6.Which is a way that we can consistently decrease 
+the margin of error for a confidence interval?
+--Increase the sample size
+
+7.Would A/B test results be considered paired data? Yes or no, and why?
+--No, because A/B testing involves each user only seeing one version of the test
+
+8.Why is it best practice to set our significance level before we see our results?
+--Because otherwise, we could change the significance level so our results 
+appear significant, which would introduce bias
+
+201.2
+1.What is the average amount spent per user for the control and treatment groups?
+
+WITH total_spent AS (
+SELECT SUM(spent) as total,
+        a.uid
+FROM activity a
+GROUP BY a.uid
+)
+SELECT AVG(COALESCE(total,0)) as avg_spent,
+        g.group
+FROM users 
+JOIN groups g
+    ON users.id = g.uid
+LEFT JOIN total_spent ts
+    ON ts.uid = users.id
+GROUP BY g.group--average spent per user
+--A = 3.37
+--B = 3.39
+
++++++++mine+++++++
+SELECT COUNT(id) as total,
+        "group"
+FROM users u
+JOIN groups g
+    ON u.id = g.uid
+GROUP BY "group"
+--A=24343 Control
+--B=24600 Treatment
+
+SELECT SUM(spent) as avg_spent,
+        g.group
+FROM activity a
+JOIN groups g
+    ON a.uid = g.uid
+JOIN users u
+    ON g.uid = u.id 
+GROUP BY g.group 
+--A=82145.90
+--B=83415.32
+
+total avg amt per user = avg_spent / total nr of users
+--A = 3.3745 Control
+--B = 3.3908 Treatment
+
+
+2. What is the 95% confidence interval 
+for the average amount spent per user in the control?
+n=sqrt.24343 -> 156
+xbar=3.37
+df=155
+t*=1.98
+S=25.93
+(3.049, 3.700)
+
+WITH total_spent AS (
+SELECT SUM(spent) as total,
+        a.uid
+FROM activity a
+GROUP BY a.uid
+)
+SELECT AVG(COALESCE(total,0)) as avg_spent, STDDEV(COALESCE(total,0)) as std,
+        g.group
+FROM users 
+JOIN groups g
+    ON users.id = g.uid
+LEFT JOIN total_spent ts
+    ON ts.uid = users.id
+GROUP BY g.group - i find xbar and std dev
+
+3. What is the 95% confidence interval for the average amount spent per user 
+in the treatment? 
+Use the t distribution.
+n=sqrt.24600 -> 157
+xbar=3.39
+df=156
+t*=1.98
+S=25.41
+(3.073, 3.708)
+
+4. Conduct a hypothesis test to see whether there is a 
+difference in the average amount spent per user between the two groups. 
+What are the resulting p-value and conclusion? 
+Use the t distribution and a 5% significance level. 
+Assume unequal variance.
+
+WITH cte AS (
+SELECT uid, "group", SUM(spent) AS total_spent
+FROM groups
+left join activity
+using(uid)
+GROUP BY uid,"group"
+), cte_2 as
+(select uid, "group", (COALESCE(total_spent, 0)) total_spent from cte)
+select * from cte_2
+
+then spreadsheet
+
+Calculate the summary statistics for both groups:
+For each group, find the sample size (n), the mean (x̄), and the standard deviation (s).
+
+For Group A:
+Sample size (nA): =COUNTIF(B:B,"A")
+Mean (x̄A): =AVERAGEIF(B:B, "A", C:C)
+Standard deviation (sA): =STDEV.S(FILTER(C:C, B:B="A"))
+
+For Group B:
+Sample size (nB): =COUNTIF(B:B,"B")
+Mean (x̄B): =AVERAGEIF(B:B, "B", C:C)
+Standard deviation (sB): =STDEV.S(FILTER(C:C, B:B="B"))
+
+Welch's t-test:
+
+Calculate the t-score: =(x̄A - x̄B) / SQRT((sA^2/nA) + (sB^2/nB)) (Replace x̄A, x̄B, sA, sB, nA, and nB with the respective formulas from step 3)
+
+Degrees of freedom (df): =((sA^2/nA + sB^2/nB)^2) / ((sA^2/nA)^2/(nA-1) + (sB^2/nB)^2/(nB-1)) (Replace sA, sB, nA, and nB with the respective formulas from step 3)
+
+Calculate the p-value: =2*(1-T.DIST(abs(t-score), df, TRUE)) (Replace t-score and df with the respective formulas from step 4)
+
+Now, you can compare the p-value with the 5% significance level (α = 0.05). If the p-value is less than 0.05, you can reject the null hypothesis (H0) and conclude that there is a difference in the average amount spent per user between the two groups. If the p-value is greater than or equal to 0.05, you fail to reject the null hypothesis, meaning there is not enough evidence to conclude that there is a difference in the average amount spent per user between the two groups.
+
+p = 0.944, statistically insignificant. We fail to reject the null hypothesis that there is no difference in the mean amount spent per user between the control and treatment.
+
+
+
+5. What is the 95% confidence interval for 
+the difference in the average amount spent per user 
+between the treatment and the control (treatment-control)?
+Use the t distribution and assume unequal variance.
+
+CI = (x̄2 - x̄1) ± tα/2,df × SE
+
+where:
+
+x̄1 and x̄2 are the sample means for the two groups
+tα/2,df is the critical t-value from the t-distribution with df degrees of freedom,
+ where df = (n1 + n2 - 2) and α = 0.05/2 (since we want a two-tailed test
+ with a 95% confidence interval)
+SE is the standard error of the difference in means, which can be calculated as:
+SE = sqrt[(s1^2/n1) + (s2^2/n2)]
+
+where s1 and s2 are the sample standard deviations for the two groups, 
+and n1 and n2 are the sample sizes.
+
+So, to find the 95% confidence interval for the difference in means, 
+you would plug in the values for x̄1, x̄2, s1, s2, n1, and n2, and 
+then use a t-table or calculator to find the value of tα/2,df. 
+Once you have all the values, you can simply plug them into 
+the formula above to find the confidence interval.
+
+0.02 +- 1.96 * 0.23
+
+(-0.43,0.47)
+
+
+6.What is the user conversion rate for the control and treatment groups?
+3.92 A
+4.63 B
+
+
+
+
+7.What is the 95% confidence interval for the 
+conversion rate of users in the control? 
+Use the normal distribution.
+
+(0.036,0.041)
+
+
+8.What is the 95% confidence interval for the 
+conversion rate of users in the treatment?
+Use the normal distribution.
+
+(0.0437, 0.0489)
+
+
+9.Conduct a hypothesis test to see whether 
+there is a difference in the conversion rate between the two groups. 
+What are the resulting p-value and conclusion?
+Use the normal distribution and a 5% significance level. 
+Use the pooled proportion for the standard error.
+
+z = (pB - pA) / SE
+phat = (xA + xB) / (nA + nB)
+se = np.sqrt(phat*(1-phat)*((1/n_a)+(1/n_b)))
+p-value = 2 * NORM.S.DIST(-ABS(z))
+
+p = 0.0001, statistically significant. 
+We reject the null hypothesis that there 
+is no difference in the user conversion rate between 
+the control and treatment.
+
+
+10.What is the 95% confidence interval for the difference in 
+the conversion rate between the treatment and control 
+(treatment-control)? 
+Use the normal distribution and unpooled proportions 
+for the standard error.
+
+Treatment proportion variance = Treatment proportion * (1 - Treatment proportion)
+Control proportion variance = Control proportion * (1 - Control proportion)
+
+(Treatment proportion - Control proportion) ± Z*√[(Treatment proportion variance/sample size of treatment) + (Control proportion variance/sample size of control)]
+
+SE = √[(Treatment proportion variance/sample size of treatment) + (Control proportion variance/sample size of control)]
+
+ME = Z * SE
+
+(Treatment proportion - Control proportion) ± ME
+
+
+(0.0035, 0.0107)
+
+
+
+
+
+
+
+
